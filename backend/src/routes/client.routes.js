@@ -1,6 +1,8 @@
 import { Router } from "express";
 import {
   getClient,
+  getClientPayments,
+  getClientPaymentYears,
   getClients,
   importClients,
   postClientPayment,
@@ -20,6 +22,8 @@ router.use(authRequired);
 router.get("/", asyncHandler(getClients));
 router.post("/", clientSchema, validateSchema, asyncHandler(postClient));
 router.post("/import", upload.single("file"), asyncHandler(importClients));
+router.get("/:id/payment-years", clientIdSchema, validateSchema, asyncHandler(getClientPaymentYears));
+router.get("/:id/payments", clientIdSchema, validateSchema, asyncHandler(getClientPayments));
 router.get("/:id", clientIdSchema, validateSchema, asyncHandler(getClient));
 router.put("/:id", [...clientIdSchema, ...clientSchema], validateSchema, asyncHandler(putClient));
 router.post("/:id/payment", [...clientIdSchema, ...paymentSchema], validateSchema, asyncHandler(postClientPayment));

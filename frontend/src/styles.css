@@ -147,6 +147,11 @@ td small {
   margin-top: 4px;
 }
 
+.owner-name {
+  display: block;
+  margin-top: 8px;
+}
+
 .nav {
   display: grid;
   gap: 8px;
@@ -302,6 +307,104 @@ td small {
 
 .risk-summary strong {
   font-size: 2.2rem;
+}
+
+.reports-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.report-client-list,
+.report-detail,
+.report-search-list {
+  display: grid;
+  gap: 14px;
+}
+
+.client-report-item {
+  background: #f8fafc;
+  border: 1px solid #dbe3ee;
+  color: #18212f;
+  display: grid;
+  justify-content: stretch;
+  min-height: auto;
+  padding: 12px;
+  text-align: left;
+}
+
+.client-report-item strong,
+.client-report-item small {
+  display: block;
+}
+
+.client-report-item small {
+  color: #667386;
+  margin-top: 4px;
+}
+
+.client-report-item.active {
+  background: #dcfce7;
+  border-color: #22c55e;
+}
+
+.report-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.report-summary-grid article {
+  background: #f8fafc;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.report-summary-grid span {
+  color: #667386;
+  display: block;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.report-summary-grid strong {
+  font-size: 1.4rem;
+}
+
+.report-table {
+  min-width: 620px;
+}
+
+.month-report {
+  display: grid;
+  gap: 14px;
+}
+
+.month-report-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(52px, 1fr));
+  gap: 8px;
+}
+
+.month-report-box {
+  align-items: center;
+  border-radius: 8px;
+  display: flex;
+  font-weight: 900;
+  justify-content: center;
+  min-height: 42px;
+}
+
+.month-report-box.paid {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.month-report-box.pending {
+  background: #f1f5f9;
+  color: #64748b;
 }
 
 .form-grid {
@@ -686,8 +789,17 @@ th {
   .stats-grid,
   .dashboard-grid,
   .report-grid,
+  .reports-layout,
   .content-grid {
     grid-template-columns: 1fr;
+  }
+
+  .report-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .month-report-grid {
+    grid-template-columns: repeat(3, minmax(64px, 1fr));
   }
 }
 

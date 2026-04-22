@@ -21,10 +21,40 @@ export async function setupDatabase() {
     const schema = fs.readFileSync(schemaPath, "utf8");
     await connection.query(schema);
     await ensureClientBillingColumns(connection);
+    await backfillClientPaymentYears(connection);
+    await backfillPaymentRecords(connection);
     console.log(`Database "${config.db.database}" is ready.`);
   } finally {
     await connection.end();
   }
+}
+
+async function backfillPaymentRecords(connection) {
+  await connection.query(
+    `INSERT INTO ${config.db.database}.payment_records
+      (client_id, user_id, payment_date, payment_type, amount_paid, balance_after)
+     SELECT c.id, c.user_id, c.last_payment_date, COALESCE(c.last_payment_type, 'full'), c.last_payment_amount, c.balance_due
+     FROM ${config.db.database}.clients c
+     WHERE c.last_payment_date IS NOT NULL
+       AND c.last_payment_amount > 0
+       AND NOT EXISTS (
+         SELECT 1
+         FROM ${config.db.database}.payment_records pr
+         WHERE pr.client_id = c.id
+           AND pr.payment_date = c.last_payment_date
+           AND pr.amount_paid = c.last_payment_amount
+       )`
+  );
+}
+
+async function backfillClientPaymentYears(connection) {
+  await connection.query(
+    `INSERT INTO ${config.db.database}.client_payment_years (client_id, user_id, billing_year, paid_months)
+     SELECT id, user_id, billing_year, paid_months
+     FROM ${config.db.database}.clients
+     WHERE paid_months IS NOT NULL
+     ON DUPLICATE KEY UPDATE paid_months = VALUES(paid_months)`
+  );
 }
 
 async function ensureClientBillingColumns(connection) {

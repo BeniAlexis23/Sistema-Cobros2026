@@ -26,6 +26,7 @@ export default function Layout() {
             Dashboard
           </NavLink>
           <NavLink to="/clientes">Clientes</NavLink>
+          <NavLink to="/reportes">Reportes</NavLink>
         </nav>
 
         <button className="ghost-button" onClick={handleLogout}>

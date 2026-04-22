@@ -61,6 +61,7 @@ export async function createClient(userId, data) {
       (:user_id, :full_name, :document_number, :phone, :email, :address, :payment_status, :amount_due, :billing_year, :paid_months, :balance_due, :due_date, :notes)`,
     { user_id: userId, ...payload }
   );
+  await upsertClientPaymentYear(result.insertId, userId, payload.billing_year, JSON.parse(payload.paid_months));
   return findClientById(result.insertId, userId);
 }
 
@@ -83,6 +84,7 @@ export async function updateClient(id, userId, data) {
      WHERE id = :id AND user_id = :userId`,
     { id, userId, ...payload }
   );
+  await upsertClientPaymentYear(id, userId, payload.billing_year, JSON.parse(payload.paid_months));
   return findClientById(id, userId);
 }
 
@@ -126,7 +128,67 @@ export async function confirmClientPayment(id, userId, data) {
     }
   );
 
+  await pool.execute(
+    `INSERT INTO payment_records
+      (client_id, user_id, payment_date, payment_type, amount_paid, balance_after)
+     VALUES
+      (:client_id, :user_id, :payment_date, :payment_type, :amount_paid, :balance_after)`,
+    {
+      client_id: id,
+      user_id: userId,
+      payment_date: data.payment_date,
+      payment_type: data.payment_type,
+      amount_paid: amountPaid,
+      balance_after: balanceDue
+    }
+  );
+  await upsertClientPaymentYear(id, userId, client.billing_year, updatedPaidMonths);
+
   return findClientById(id, userId);
+}
+
+export async function listClientPayments(id, userId, year = null) {
+  const where = ["pr.client_id = :id", "pr.user_id = :userId", "c.user_id = :userId"];
+  const params = { id, userId };
+
+  if (year) {
+    where.push("YEAR(pr.payment_date) = :year");
+    params.year = Number(year);
+  }
+
+  const [rows] = await pool.execute(
+    `SELECT pr.*
+     FROM payment_records pr
+     INNER JOIN clients c ON c.id = pr.client_id
+     WHERE ${where.join(" AND ")}
+     ORDER BY pr.payment_date DESC, pr.created_at DESC`,
+    params
+  );
+  return rows;
+}
+
+export async function listClientPaymentYears(id, userId) {
+  const [rows] = await pool.execute(
+    `SELECT billing_year, paid_months
+     FROM client_payment_years
+     WHERE client_id = :id AND user_id = :userId
+     ORDER BY billing_year DESC`,
+    { id, userId }
+  );
+  const years = rows.map((row) => ({
+    billing_year: row.billing_year,
+    paid_months: parsePaidMonths(row.paid_months)
+  }));
+  const client = await findClientById(id, userId);
+
+  if (client && !years.some((item) => Number(item.billing_year) === Number(client.billing_year))) {
+    years.unshift({
+      billing_year: client.billing_year,
+      paid_months: client.paid_months
+    });
+  }
+
+  return years.sort((a, b) => b.billing_year - a.billing_year);
 }
 
 export async function deleteClient(id, userId) {
@@ -249,4 +311,18 @@ function getClientDebt(client, dueMonths = null) {
 
   const months = dueMonths || getDueMonths(client.billing_year, normalizePaidMonths(client.paid_months));
   return months.length * Number(client.amount_due || 0);
+}
+
+async function upsertClientPaymentYear(clientId, userId, billingYear, paidMonths) {
+  await pool.execute(
+    `INSERT INTO client_payment_years (client_id, user_id, billing_year, paid_months)
+     VALUES (:client_id, :user_id, :billing_year, :paid_months)
+     ON DUPLICATE KEY UPDATE paid_months = VALUES(paid_months)`,
+    {
+      client_id: clientId,
+      user_id: userId,
+      billing_year: Number(billingYear || new Date().getFullYear()),
+      paid_months: JSON.stringify(normalizePaidMonths(paidMonths))
+    }
+  );
 }

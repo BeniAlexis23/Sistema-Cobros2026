@@ -120,7 +120,7 @@ export default function DashboardPage() {
               <article key={client.id} className="compact-row">
                 <div>
                   <strong>{client.full_name}</strong>
-                  <small>{client.owner_name}</small>
+                  <small className="owner-name">{client.owner_name}</small>
                 </div>
                 <span className="status paid">Al dia</span>
               </article>

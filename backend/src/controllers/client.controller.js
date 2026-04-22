@@ -7,6 +7,8 @@ import {
   createClient,
   deleteClient,
   findClientById,
+  listClientPayments,
+  listClientPaymentYears,
   listClients,
   updateClient
 } from "../models/client.model.js";
@@ -46,6 +48,16 @@ export async function postClientPayment(req, res) {
     return res.status(404).json({ message: "Client not found" });
   }
   res.json({ client });
+}
+
+export async function getClientPayments(req, res) {
+  const payments = await listClientPayments(req.params.id, req.user.id, req.query.year);
+  res.json({ payments });
+}
+
+export async function getClientPaymentYears(req, res) {
+  const years = await listClientPaymentYears(req.params.id, req.user.id);
+  res.json({ years });
 }
 
 export async function removeClient(req, res) {

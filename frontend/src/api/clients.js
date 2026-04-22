@@ -8,6 +8,8 @@ export const clientsApi = {
     return request(`/clients${query ? `?${query}` : ""}`);
   },
   get: (id) => request(`/clients/${id}`),
+  payments: (id, year) => request(`/clients/${id}/payments${year ? `?year=${year}` : ""}`),
+  paymentYears: (id) => request(`/clients/${id}/payment-years`),
   create: (payload) => request("/clients", { method: "POST", body: JSON.stringify(payload) }),
   update: (id, payload) => request(`/clients/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
   confirmPayment: (id, payload) => request(`/clients/${id}/payment`, { method: "POST", body: JSON.stringify(payload) }),
