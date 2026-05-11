@@ -14,12 +14,15 @@ export async function setupDatabase() {
     port: config.db.port,
     user: config.db.user,
     password: config.db.password,
+    charset: "utf8mb4",
     multipleStatements: true
   });
 
   try {
     const schema = buildSchema(fs.readFileSync(schemaPath, "utf8"));
     await connection.query(schema);
+    await ensureDatabaseCollation(connection);
+    await ensureTableCollations(connection);
     await ensureClientBillingColumns(connection);
     await backfillClientPaymentYears(connection);
     await backfillPaymentRecords(connection);
@@ -35,6 +38,26 @@ function buildSchema(schema) {
   return schema
     .replace(/CREATE DATABASE IF NOT EXISTS\s+[`"]?sistema_cobros[`"]?/i, `CREATE DATABASE IF NOT EXISTS \`${databaseName}\``)
     .replace(/USE\s+[`"]?sistema_cobros[`"]?/i, `USE \`${databaseName}\``);
+}
+
+async function ensureDatabaseCollation(connection) {
+  await connection.query(
+    `ALTER DATABASE \`${config.db.database}\`
+     CHARACTER SET utf8mb4
+     COLLATE utf8mb4_unicode_ci`
+  );
+}
+
+async function ensureTableCollations(connection) {
+  const tables = ["users", "clients", "invoice_files", "payment_records", "client_payment_years"];
+
+  for (const table of tables) {
+    await connection.query(
+      `ALTER TABLE \`${config.db.database}\`.\`${table}\`
+       CONVERT TO CHARACTER SET utf8mb4
+       COLLATE utf8mb4_unicode_ci`
+    );
+  }
 }
 
 async function backfillPaymentRecords(connection) {

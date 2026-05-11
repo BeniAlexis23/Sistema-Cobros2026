@@ -2,6 +2,10 @@ CREATE DATABASE IF NOT EXISTS sistema_cobros
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
 
+ALTER DATABASE sistema_cobros
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+
 USE sistema_cobros;
 
 CREATE TABLE IF NOT EXISTS users (
@@ -10,7 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
   email VARCHAR(160) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS clients (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -35,7 +39,7 @@ CREATE TABLE IF NOT EXISTS clients (
   CONSTRAINT fk_clients_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   INDEX idx_clients_user_status (user_id, payment_status),
   INDEX idx_clients_due_date (due_date)
-);
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS invoice_files (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -48,7 +52,7 @@ CREATE TABLE IF NOT EXISTS invoice_files (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_invoice_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL,
   CONSTRAINT fk_invoice_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS payment_records (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -62,7 +66,7 @@ CREATE TABLE IF NOT EXISTS payment_records (
   CONSTRAINT fk_payment_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
   CONSTRAINT fk_payment_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   INDEX idx_payment_client_date (client_id, payment_date)
-);
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS client_payment_years (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -75,4 +79,4 @@ CREATE TABLE IF NOT EXISTS client_payment_years (
   CONSTRAINT fk_payment_year_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
   CONSTRAINT fk_payment_year_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   UNIQUE KEY uniq_client_year (client_id, billing_year)
-);
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
