@@ -18,7 +18,7 @@ export async function setupDatabase() {
   });
 
   try {
-    const schema = fs.readFileSync(schemaPath, "utf8");
+    const schema = buildSchema(fs.readFileSync(schemaPath, "utf8"));
     await connection.query(schema);
     await ensureClientBillingColumns(connection);
     await backfillClientPaymentYears(connection);
@@ -27,6 +27,14 @@ export async function setupDatabase() {
   } finally {
     await connection.end();
   }
+}
+
+function buildSchema(schema) {
+  const databaseName = config.db.database;
+
+  return schema
+    .replace(/CREATE DATABASE IF NOT EXISTS\s+[`"]?sistema_cobros[`"]?/i, `CREATE DATABASE IF NOT EXISTS \`${databaseName}\``)
+    .replace(/USE\s+[`"]?sistema_cobros[`"]?/i, `USE \`${databaseName}\``);
 }
 
 async function backfillPaymentRecords(connection) {

@@ -27,11 +27,6 @@ export async function listClients(userId, filters = {}) {
   const where = ["c.user_id = :userId"];
   const params = { userId };
 
-  if (filters.status) {
-    where.push("c.payment_status = :status");
-    params.status = filters.status;
-  }
-
   if (filters.search) {
     where.push("(c.full_name LIKE :search OR c.document_number LIKE :search OR c.phone LIKE :search)");
     params.search = `%${filters.search}%`;
@@ -41,7 +36,13 @@ export async function listClients(userId, filters = {}) {
     `${baseSelect} WHERE ${where.join(" AND ")} ORDER BY c.created_at DESC`,
     params
   );
-  return rows.map(normalizeClientRow);
+  const normalizedRows = rows.map(normalizeClientRow);
+
+  if (filters.status) {
+    return normalizedRows.filter((row) => row.payment_status === filters.status);
+  }
+
+  return normalizedRows;
 }
 
 export async function findClientById(id, userId) {
@@ -208,37 +209,25 @@ export async function bulkCreateClients(userId, clients) {
 }
 
 export async function getClientStats(userId) {
-  const [summaryRows] = await pool.execute(
-    `SELECT
-      COUNT(*) AS total,
-      COALESCE(SUM(payment_status = 'paid'), 0) AS paid,
-      COALESCE(SUM(payment_status = 'pending'), 0) AS pending,
-      COALESCE(SUM(CASE WHEN payment_status = 'pending' THEN IF(balance_due > 0, balance_due, amount_due) ELSE 0 END), 0) AS pending_amount
-     FROM clients
-     WHERE user_id = :userId`,
-    { userId }
-  );
-
-  const [pendingRows] = await pool.execute(
-    `${baseSelect}
-     WHERE c.user_id = :userId AND c.payment_status = 'pending'
-     ORDER BY c.due_date IS NULL, c.due_date ASC, c.created_at DESC
-     LIMIT 10`,
-    { userId }
-  );
-
-  const [paidRows] = await pool.execute(
-    `${baseSelect}
-     WHERE c.user_id = :userId AND c.payment_status = 'paid'
-     ORDER BY c.updated_at DESC
-     LIMIT 10`,
-    { userId }
-  );
+  const clients = await listClients(userId);
+  const paidClients = clients.filter((client) => client.payment_status === "paid");
+  const pendingClients = clients.filter((client) => client.payment_status === "pending");
 
   return {
-    summary: summaryRows[0],
-    pendingClients: pendingRows.map(normalizeClientRow),
-    paidClients: paidRows.map(normalizeClientRow)
+    summary: {
+      total: clients.length,
+      paid: paidClients.length,
+      pending: pendingClients.length,
+      pending_amount: pendingClients.reduce((sum, client) => sum + Number(client.balance_due || 0), 0)
+    },
+    pendingClients: pendingClients
+      .sort((a, b) => {
+        const dateA = a.due_date ? new Date(a.due_date).getTime() : Number.MAX_SAFE_INTEGER;
+        const dateB = b.due_date ? new Date(b.due_date).getTime() : Number.MAX_SAFE_INTEGER;
+        return dateA - dateB;
+      })
+      .slice(0, 10),
+    paidClients: paidClients.slice(0, 10)
   };
 }
 
@@ -276,9 +265,11 @@ function normalizeClientRow(row) {
   const paidMonths = parsePaidMonths(row.paid_months);
   const dueMonths = getDueMonths(row.billing_year, paidMonths);
   const balanceDue = getClientDebt({ ...row, paid_months: paidMonths }, dueMonths);
+  const paymentStatus = getPaymentStatusFromMonths(paidMonths, balanceDue);
 
   return {
     ...row,
+    payment_status: paymentStatus,
     paid_months: paidMonths,
     owed_months_count: dueMonths.length,
     owed_months: dueMonths,

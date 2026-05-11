@@ -71,7 +71,7 @@ export default function ClientTable({ clients, onCollect, onDelete, onViewReceip
                 </td>
                 <td>{client.owner_name}</td>
                 <td className="actions">
-                  {client.payment_status === "pending" && client.phone && (
+                  {debt.amount > 0 && client.phone && (
                     <button className="small-button collect-button" onClick={() => onCollect(client)}>
                       Cobrar
                     </button>

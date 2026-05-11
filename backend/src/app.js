@@ -30,7 +30,12 @@ app.use(morgan(config.nodeEnv === "production" ? "combined" : "dev"));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok", service: "sistema-cobros-api" });
+  res.json({
+    status: "ok",
+    service: "sistema-cobros-api",
+    storageDriver: config.storageDriver,
+    s3Bucket: config.storageDriver === "s3" ? config.aws.bucket : null
+  });
 });
 
 app.use("/api/auth", authRoutes);

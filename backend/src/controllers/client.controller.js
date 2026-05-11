@@ -1,6 +1,5 @@
 import { parse } from "csv-parse/sync";
 import ExcelJS from "exceljs";
-import fs from "fs";
 import {
   bulkCreateClients,
   confirmClientPayment,
@@ -85,7 +84,7 @@ export async function importClients(req, res) {
 }
 
 async function parseImportFile(file) {
-  const buffer = fs.readFileSync(file.path);
+  const buffer = file.buffer;
 
   if (file.mimetype === "text/csv") {
     return parse(buffer, {

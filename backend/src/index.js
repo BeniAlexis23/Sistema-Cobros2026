@@ -4,10 +4,20 @@ import { setupDatabase } from "./db/setup.js";
 import { pingDatabase } from "./db.js";
 
 async function main() {
-  await setupDatabase();
+  if (config.dbAutoSetup) {
+    await setupDatabase();
+  } else {
+    console.log("Database auto-setup skipped.");
+  }
+
   await pingDatabase();
   const server = app.listen(config.port, () => {
     console.log(`API running on port ${config.port}`);
+    console.log(`Database auto-setup: ${config.dbAutoSetup ? "enabled" : "disabled"}`);
+    console.log(`Storage driver: ${config.storageDriver}`);
+    if (config.storageDriver === "s3") {
+      console.log(`S3 bucket: ${config.aws.bucket}`);
+    }
   });
 
   server.on("error", (error) => {

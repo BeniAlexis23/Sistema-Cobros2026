@@ -27,7 +27,11 @@ export default function ClientsPage() {
   const [error, setError] = useState("");
 
   const collectionDebt = collectionClient ? getDebtSummary(collectionClient) : null;
-  const receiptUrl = receiptClient?.latest_receipt_path ? `${apiOrigin}${receiptClient.latest_receipt_path}` : "";
+  const receiptUrl = receiptClient?.latest_receipt_path
+    ? receiptClient.latest_receipt_path.startsWith("http")
+      ? receiptClient.latest_receipt_path
+      : `${apiOrigin}${receiptClient.latest_receipt_path}`
+    : "";
   const receiptName = receiptClient?.latest_receipt_name || "Comprobante";
   const isReceiptImage = /\.(png|jpe?g)$/i.test(receiptName) || /\.(png|jpe?g)(\?|$)/i.test(receiptUrl);
   const paymentAmount =
