@@ -6,5 +6,6 @@ export const uploadsApi = {
     if (clientId) form.append("client_id", clientId);
     form.append("file", file);
     return request("/uploads/invoice", { method: "POST", body: form });
-  }
+  },
+  latestView: (clientId) => request(`/uploads/invoice/client/${clientId}/latest`)
 };

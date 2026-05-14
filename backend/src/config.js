@@ -24,7 +24,8 @@ export const config = {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID || "",
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || "",
     bucket: process.env.AWS_S3_BUCKET || "",
-    baseUrl: process.env.AWS_S3_BASE_URL || ""
+    baseUrl: process.env.AWS_S3_BASE_URL || "",
+    signedUrlExpiresIn: Number(process.env.AWS_SIGNED_URL_EXPIRES_IN || 300)
   },
   db: {
     host: process.env.DB_HOST || "localhost",

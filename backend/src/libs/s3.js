@@ -1,4 +1,5 @@
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { config } from "../config.js";
 
 const hasAwsConfig = Boolean(
@@ -40,6 +41,22 @@ export async function uploadToS3({ buffer, contentType, key }) {
     key,
     url: buildS3Url(key)
   };
+}
+
+export async function getSignedS3Url(key, options = {}) {
+  if (!s3) {
+    throw new Error("S3 is not configured");
+  }
+
+  return getSignedUrl(
+    s3,
+    new GetObjectCommand({
+      Bucket: config.aws.bucket,
+      Key: key,
+      ...(options.contentType ? { ResponseContentType: options.contentType } : {})
+    }),
+    { expiresIn: options.expiresIn || config.aws.signedUrlExpiresIn }
+  );
 }
 
 function buildS3Url(key) {

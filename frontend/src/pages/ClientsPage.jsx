@@ -17,6 +17,8 @@ export default function ClientsPage() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [collectionClient, setCollectionClient] = useState(null);
   const [receiptClient, setReceiptClient] = useState(null);
+  const [receiptView, setReceiptView] = useState(null);
+  const [receiptLoading, setReceiptLoading] = useState(false);
   const [paymentProofFile, setPaymentProofFile] = useState(null);
   const [paymentForm, setPaymentForm] = useState({
     payment_date: today,
@@ -27,13 +29,14 @@ export default function ClientsPage() {
   const [error, setError] = useState("");
 
   const collectionDebt = collectionClient ? getDebtSummary(collectionClient) : null;
-  const receiptUrl = receiptClient?.latest_receipt_path
-    ? receiptClient.latest_receipt_path.startsWith("http")
-      ? receiptClient.latest_receipt_path
-      : `${apiOrigin}${receiptClient.latest_receipt_path}`
+  const receiptUrl = receiptView?.url
+    ? receiptView.url.startsWith("http")
+      ? receiptView.url
+      : `${apiOrigin}${receiptView.url}`
     : "";
-  const receiptName = receiptClient?.latest_receipt_name || "Comprobante";
-  const isReceiptImage = /\.(png|jpe?g)$/i.test(receiptName) || /\.(png|jpe?g)(\?|$)/i.test(receiptUrl);
+  const receiptName = receiptView?.original_name || receiptClient?.latest_receipt_name || "Comprobante";
+  const isReceiptImage =
+    /\.(png|jpe?g)$/i.test(receiptName) || /^image\/(png|jpeg|jpg)$/i.test(receiptView?.mime_type || "");
   const paymentAmount =
     paymentForm.payment_type === "full" ? collectionDebt?.amount || 0 : Number(paymentForm.amount_paid || 0);
   const remainingDebt = Math.max((collectionDebt?.amount || 0) - paymentAmount, 0);
@@ -123,6 +126,29 @@ export default function ClientsPage() {
     });
   }
 
+  async function openReceiptModal(client) {
+    setReceiptClient(client);
+    setReceiptView(null);
+    setReceiptLoading(true);
+    setError("");
+
+    try {
+      const data = await uploadsApi.latestView(client.id);
+      setReceiptView(data.file);
+    } catch (err) {
+      setError(err.message);
+      setReceiptClient(null);
+    } finally {
+      setReceiptLoading(false);
+    }
+  }
+
+  function closeReceiptModal() {
+    setReceiptClient(null);
+    setReceiptView(null);
+    setReceiptLoading(false);
+  }
+
   return (
     <div className="page">
       <header className="page-header">
@@ -168,7 +194,7 @@ export default function ClientsPage() {
           clients={clients}
           onCollect={openCollectionModal}
           onDelete={handleDelete}
-          onViewReceipt={setReceiptClient}
+          onViewReceipt={openReceiptModal}
         />
       </section>
 
@@ -320,7 +346,7 @@ export default function ClientsPage() {
         </div>
       )}
 
-      {receiptClient && receiptUrl && (
+      {receiptClient && (
         <div className="modal-backdrop" role="presentation">
           <div className="modal receipt-modal">
             <div className="panel-title">
@@ -331,7 +357,11 @@ export default function ClientsPage() {
             </div>
 
             <div className="receipt-viewer">
-              {isReceiptImage ? (
+              {receiptLoading ? (
+                <div className="notice">Cargando comprobante...</div>
+              ) : !receiptUrl ? (
+                <div className="alert">No se pudo cargar el comprobante.</div>
+              ) : isReceiptImage ? (
                 <img src={receiptUrl} alt={receiptName} />
               ) : (
                 <iframe src={receiptUrl} title={receiptName} />
@@ -339,7 +369,7 @@ export default function ClientsPage() {
             </div>
 
             <div className="form-actions">
-              <button type="button" className="secondary-button" onClick={() => setReceiptClient(null)}>
+              <button type="button" className="secondary-button" onClick={closeReceiptModal}>
                 Cerrar
               </button>
             </div>

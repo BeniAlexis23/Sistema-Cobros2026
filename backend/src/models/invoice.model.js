@@ -18,3 +18,15 @@ export async function findInvoiceFileById(id, userId) {
   );
   return rows[0] || null;
 }
+
+export async function findLatestInvoiceFileByClientId(clientId, userId) {
+  const [rows] = await pool.execute(
+    `SELECT *
+     FROM invoice_files
+     WHERE client_id = :clientId AND user_id = :userId
+     ORDER BY created_at DESC, id DESC
+     LIMIT 1`,
+    { clientId, userId }
+  );
+  return rows[0] || null;
+}
