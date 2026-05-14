@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "API para sistema de cobros con Express y MySQL",
   "main": "src/index.js",
+  "packageManager": "pnpm@11.1.2",
   "type": "module",
   "scripts": {
     "db:setup": "node src/db/setup.js",

@@ -2,6 +2,7 @@
   "name": "sistema-cobros-frontend",
   "version": "1.0.0",
   "description": "Frontend React para sistema de cobros",
+  "packageManager": "pnpm@11.1.2",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",

@@ -63,8 +63,8 @@ Backend:
 ```bash
 cd backend
 cp .env.example .env
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 - Backend: http://localhost:4000/api/health
@@ -75,14 +75,14 @@ Frontend:
 ```bash
 cd frontend
 cp .env.example .env
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:4000/api
 
-Al iniciar, el backend ejecuta el setup de base de datos y crea/verifica `sistema_cobros` con sus tablas. Si cambiaste la contrasena de MySQL en Laragon, actualiza `DB_PASSWORD` en `backend/.env` antes de correr `npm run dev`.
+Al iniciar, el backend ejecuta el setup de base de datos y crea/verifica `sistema_cobros` con sus tablas. Si cambiaste la contrasena de MySQL en Laragon, actualiza `DB_PASSWORD` en `backend/.env` antes de correr `pnpm run dev`.
 
 ## Storage local o S3
 
@@ -117,11 +117,11 @@ Usaremos este modo mas adelante cuando terminemos las pruebas locales con Larago
 
 ```bash
 cd backend
-npm run db:setup
-npm run dev
+pnpm run db:setup
+pnpm run dev
 
 cd frontend
-npm run dev
+pnpm run dev
 ```
 
 ## Carga masiva
@@ -179,6 +179,6 @@ AWS_S3_BASE_URL=https://sistema-cobros-prod-files.s3.us-east-1.amazonaws.com
 Notas importantes de produccion:
 
 - En Dokploy no uses `localhost` para `DB_HOST`; usa el hostname interno del servicio MySQL.
-- `DB_AUTO_SETUP=false` evita que la API intente crear la base en cada arranque. Usa `npm run db:setup` solo para bootstrap controlado o habilitalo temporalmente si el usuario MySQL tiene permisos suficientes.
+- `DB_AUTO_SETUP=false` evita que la API intente crear la base en cada arranque. Usa `pnpm run db:setup` solo para bootstrap controlado o habilitalo temporalmente si el usuario MySQL tiene permisos suficientes.
 - Configura `FRONTEND_URL` con el dominio real del frontend para que CORS funcione correctamente.
 - Rota cualquier credencial AWS antigua antes de desplegar.
