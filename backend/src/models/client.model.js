@@ -5,6 +5,8 @@ const baseSelect = `
     c.*,
     u.name AS owner_name,
     u.email AS owner_email,
+    NULL AS access_permission,
+    1 AS is_owner,
     (
       SELECT f.file_path
       FROM invoice_files f
@@ -23,9 +25,54 @@ const baseSelect = `
   INNER JOIN users u ON u.id = c.user_id
 `;
 
+function buildClientSelect(actor) {
+  if (actor.isSuperAdmin) {
+    return baseSelect;
+  }
+
+  return `
+    SELECT
+      c.*,
+      u.name AS owner_name,
+      u.email AS owner_email,
+      CASE
+        WHEN c.user_id = :actorId THEN 'owner'
+        ELSE cs.permission
+      END AS access_permission,
+      CASE
+        WHEN c.user_id = :actorId THEN 1
+        ELSE 0
+      END AS is_owner,
+      (
+        SELECT f.file_path
+        FROM invoice_files f
+        WHERE f.client_id = c.id
+        ORDER BY f.created_at DESC
+        LIMIT 1
+      ) AS latest_receipt_path,
+      (
+        SELECT f.original_name
+        FROM invoice_files f
+        WHERE f.client_id = c.id
+        ORDER BY f.created_at DESC
+        LIMIT 1
+      ) AS latest_receipt_name
+    FROM clients c
+    INNER JOIN users u ON u.id = c.user_id
+    LEFT JOIN client_shares cs
+      ON cs.client_id = c.id
+     AND cs.shared_with_user_id = :actorId
+  `;
+}
+
 export async function listClients(userId, filters = {}) {
-  const where = ["c.user_id = :userId"];
-  const params = { userId };
+  const actor = normalizeActor(userId);
+  const where = [];
+  const params = actor.isSuperAdmin ? {} : { actorId: actor.id };
+
+  if (!actor.isSuperAdmin) {
+    where.push("(c.user_id = :actorId OR cs.shared_with_user_id = :actorId)");
+  }
 
   if (filters.search) {
     where.push("(c.full_name LIKE :search OR c.document_number LIKE :search OR c.phone LIKE :search)");
@@ -33,7 +80,7 @@ export async function listClients(userId, filters = {}) {
   }
 
   const [rows] = await pool.execute(
-    `${baseSelect} WHERE ${where.join(" AND ")} ORDER BY c.created_at DESC`,
+    `${buildClientSelect(actor)}${where.length ? ` WHERE ${where.join(" AND ")}` : ""} ORDER BY c.created_at DESC`,
     params
   );
   const normalizedRows = rows.map(normalizeClientRow);
@@ -46,10 +93,15 @@ export async function listClients(userId, filters = {}) {
 }
 
 export async function findClientById(id, userId) {
-  const [rows] = await pool.execute(`${baseSelect} WHERE c.id = :id AND c.user_id = :userId LIMIT 1`, {
-    id,
-    userId
-  });
+  const actor = normalizeActor(userId);
+  const where = ["c.id = :id"];
+  const params = actor.isSuperAdmin ? { id } : { id, actorId: actor.id };
+
+  if (!actor.isSuperAdmin) {
+    where.push("(c.user_id = :actorId OR cs.shared_with_user_id = :actorId)");
+  }
+
+  const [rows] = await pool.execute(`${buildClientSelect(actor)} WHERE ${where.join(" AND ")} LIMIT 1`, params);
   return rows[0] ? normalizeClientRow(rows[0]) : null;
 }
 
@@ -67,6 +119,10 @@ export async function createClient(userId, data) {
 }
 
 export async function updateClient(id, userId, data) {
+  const actor = normalizeActor(userId);
+  const existing = await findClientById(id, actor);
+  if (!existing || !canEditClient(existing, actor)) return null;
+
   const payload = normalizeClientPayload(data);
   await pool.execute(
     `UPDATE clients SET
@@ -82,16 +138,17 @@ export async function updateClient(id, userId, data) {
       balance_due = :balance_due,
       due_date = :due_date,
       notes = :notes
-     WHERE id = :id AND user_id = :userId`,
-    { id, userId, ...payload }
+     WHERE id = :id`,
+    { id, ...payload }
   );
-  await upsertClientPaymentYear(id, userId, payload.billing_year, JSON.parse(payload.paid_months));
-  return findClientById(id, userId);
+  await upsertClientPaymentYear(id, existing.user_id, payload.billing_year, JSON.parse(payload.paid_months));
+  return findClientById(id, actor);
 }
 
 export async function confirmClientPayment(id, userId, data) {
-  const client = await findClientById(id, userId);
-  if (!client) return null;
+  const actor = normalizeActor(userId);
+  const client = await findClientById(id, actor);
+  if (!client || !canEditClient(client, actor)) return null;
 
   const planAmount = Number(client.amount_due || 0);
   const paidMonths = normalizePaidMonths(client.paid_months);
@@ -119,7 +176,7 @@ export async function confirmClientPayment(id, userId, data) {
      WHERE id = :id AND user_id = :userId`,
     {
       id,
-      userId,
+      userId: client.user_id,
       paid_months: JSON.stringify(updatedPaidMonths),
       payment_status: getPaymentStatusFromMonths(updatedPaidMonths, balanceDue),
       balance_due: balanceDue,
@@ -136,21 +193,25 @@ export async function confirmClientPayment(id, userId, data) {
       (:client_id, :user_id, :payment_date, :payment_type, :amount_paid, :balance_after)`,
     {
       client_id: id,
-      user_id: userId,
+      user_id: client.user_id,
       payment_date: data.payment_date,
       payment_type: data.payment_type,
       amount_paid: amountPaid,
       balance_after: balanceDue
     }
   );
-  await upsertClientPaymentYear(id, userId, client.billing_year, updatedPaidMonths);
+  await upsertClientPaymentYear(id, client.user_id, client.billing_year, updatedPaidMonths);
 
-  return findClientById(id, userId);
+  return findClientById(id, actor);
 }
 
 export async function listClientPayments(id, userId, year = null) {
-  const where = ["pr.client_id = :id", "pr.user_id = :userId", "c.user_id = :userId"];
-  const params = { id, userId };
+  const actor = normalizeActor(userId);
+  const client = await findClientById(id, actor);
+  if (!client) return [];
+
+  const where = ["pr.client_id = :id"];
+  const params = { id };
 
   if (year) {
     where.push("YEAR(pr.payment_date) = :year");
@@ -160,7 +221,6 @@ export async function listClientPayments(id, userId, year = null) {
   const [rows] = await pool.execute(
     `SELECT pr.*
      FROM payment_records pr
-     INNER JOIN clients c ON c.id = pr.client_id
      WHERE ${where.join(" AND ")}
      ORDER BY pr.payment_date DESC, pr.created_at DESC`,
     params
@@ -169,18 +229,21 @@ export async function listClientPayments(id, userId, year = null) {
 }
 
 export async function listClientPaymentYears(id, userId) {
+  const actor = normalizeActor(userId);
+  const client = await findClientById(id, actor);
+  if (!client) return [];
+
   const [rows] = await pool.execute(
     `SELECT billing_year, paid_months
      FROM client_payment_years
-     WHERE client_id = :id AND user_id = :userId
+     WHERE client_id = :id
      ORDER BY billing_year DESC`,
-    { id, userId }
+    { id }
   );
   const years = rows.map((row) => ({
     billing_year: row.billing_year,
     paid_months: parsePaidMonths(row.paid_months)
   }));
-  const client = await findClientById(id, userId);
 
   if (client && !years.some((item) => Number(item.billing_year) === Number(client.billing_year))) {
     years.unshift({
@@ -193,7 +256,11 @@ export async function listClientPaymentYears(id, userId) {
 }
 
 export async function deleteClient(id, userId) {
-  const [result] = await pool.execute("DELETE FROM clients WHERE id = :id AND user_id = :userId", { id, userId });
+  const actor = normalizeActor(userId);
+  const client = await findClientById(id, actor);
+  if (!client || !canManageShares(client, actor)) return false;
+
+  const [result] = await pool.execute("DELETE FROM clients WHERE id = :id", { id });
   return result.affectedRows > 0;
 }
 
@@ -228,6 +295,20 @@ export async function getClientStats(userId) {
       })
       .slice(0, 10),
     paidClients: paidClients.slice(0, 10)
+  };
+}
+
+function normalizeActor(actor) {
+  if (actor && typeof actor === "object") {
+    return {
+      id: actor.id,
+      isSuperAdmin: actor.role === "super_admin"
+    };
+  }
+
+  return {
+    id: actor,
+    isSuperAdmin: false
   };
 }
 
@@ -269,12 +350,22 @@ function normalizeClientRow(row) {
 
   return {
     ...row,
+    access_permission: row.access_permission || "owner",
+    is_owner: Boolean(row.is_owner),
     payment_status: paymentStatus,
     paid_months: paidMonths,
     owed_months_count: dueMonths.length,
     owed_months: dueMonths,
     balance_due: balanceDue
   };
+}
+
+function canEditClient(client, actor) {
+  return actor.isSuperAdmin || client.is_owner || client.access_permission === "edit";
+}
+
+function canManageShares(client, actor) {
+  return actor.isSuperAdmin || client.is_owner;
 }
 
 function parsePaidMonths(value) {
@@ -316,4 +407,66 @@ async function upsertClientPaymentYear(clientId, userId, billingYear, paidMonths
       paid_months: JSON.stringify(normalizePaidMonths(paidMonths))
     }
   );
+}
+
+export async function listClientShares(id, userId) {
+  const actor = normalizeActor(userId);
+  const client = await findClientById(id, actor);
+  if (!client || !canManageShares(client, actor)) return null;
+
+  const [rows] = await pool.execute(
+    `SELECT
+      cs.id,
+      cs.permission,
+      cs.created_at,
+      u.id AS user_id,
+      u.name,
+      u.email
+     FROM client_shares cs
+     INNER JOIN users u ON u.id = cs.shared_with_user_id
+     WHERE cs.client_id = :id
+     ORDER BY cs.created_at DESC`,
+    { id }
+  );
+
+  return { client, shares: rows };
+}
+
+export async function upsertClientShare(id, actorUser, sharedUser, permission) {
+  const actor = normalizeActor(actorUser);
+  const client = await findClientById(id, actor);
+  if (!client || !canManageShares(client, actor)) return null;
+
+  if (Number(sharedUser.id) === Number(client.user_id)) {
+    const error = new Error("No puedes compartir el cliente con su propietario");
+    error.status = 400;
+    throw error;
+  }
+
+  await pool.execute(
+    `INSERT INTO client_shares (client_id, owner_user_id, shared_with_user_id, permission)
+     VALUES (:client_id, :owner_user_id, :shared_with_user_id, :permission)
+     ON DUPLICATE KEY UPDATE permission = VALUES(permission), owner_user_id = VALUES(owner_user_id)`,
+    {
+      client_id: id,
+      owner_user_id: client.user_id,
+      shared_with_user_id: sharedUser.id,
+      permission
+    }
+  );
+
+  return listClientShares(id, actor);
+}
+
+export async function removeClientShare(id, shareId, userId) {
+  const actor = normalizeActor(userId);
+  const client = await findClientById(id, actor);
+  if (!client || !canManageShares(client, actor)) return false;
+
+  const [result] = await pool.execute(
+    "DELETE FROM client_shares WHERE id = :shareId AND client_id = :clientId",
+    { shareId, clientId: id }
+  );
+
+  return result.affectedRows > 0;
 }

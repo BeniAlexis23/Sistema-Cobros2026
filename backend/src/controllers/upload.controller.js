@@ -1,10 +1,20 @@
 import { getSignedS3Url, isS3Enabled } from "../libs/s3.js";
 import { createInvoiceFile, findLatestInvoiceFileByClientId } from "../models/invoice.model.js";
+import { findClientById } from "../models/client.model.js";
 import { uploadReceiptFile } from "../libs/storage.js";
 
 export async function uploadInvoice(req, res) {
   if (!req.file) {
     return res.status(400).json({ message: "Invoice file is required" });
+  }
+
+  if (req.body.client_id) {
+    const client = await findClientById(req.body.client_id, req.user);
+    const canEdit = client && (req.user.role === "super_admin" || client.is_owner || client.access_permission === "edit");
+
+    if (!canEdit) {
+      return res.status(403).json({ message: "You do not have permission to upload a receipt for this client" });
+    }
   }
 
   const storedFile = await uploadReceiptFile(req.file, {
@@ -24,7 +34,12 @@ export async function uploadInvoice(req, res) {
 }
 
 export async function getLatestInvoiceView(req, res) {
-  const file = await findLatestInvoiceFileByClientId(req.params.clientId, req.user.id);
+  const client = await findClientById(req.params.clientId, req.user);
+  if (!client) {
+    return res.status(404).json({ message: "Client not found" });
+  }
+
+  const file = await findLatestInvoiceFileByClientId(req.params.clientId, req.user);
 
   if (!file) {
     return res.status(404).json({ message: "Receipt not found" });

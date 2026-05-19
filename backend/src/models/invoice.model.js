@@ -23,10 +23,10 @@ export async function findLatestInvoiceFileByClientId(clientId, userId) {
   const [rows] = await pool.execute(
     `SELECT *
      FROM invoice_files
-     WHERE client_id = :clientId AND user_id = :userId
+     WHERE client_id = :clientId
      ORDER BY created_at DESC, id DESC
      LIMIT 1`,
-    { clientId, userId }
+    { clientId }
   );
   return rows[0] || null;
 }

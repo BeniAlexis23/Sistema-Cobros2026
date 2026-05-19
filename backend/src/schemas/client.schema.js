@@ -1,6 +1,7 @@
 import { body, param } from "express-validator";
 
 export const clientIdSchema = [param("id").isInt({ min: 1 }).withMessage("Client id is invalid")];
+export const shareIdSchema = [param("shareId").isInt({ min: 1 }).withMessage("Share id is invalid")];
 
 export const paymentSchema = [
   body("payment_date").isISO8601().withMessage("Payment date is required"),
@@ -21,4 +22,9 @@ export const clientSchema = [
   body("paid_months.*").optional().isInt({ min: 1, max: 12 }).withMessage("Paid month is invalid"),
   body("due_date").optional({ nullable: true, checkFalsy: true }).isISO8601().withMessage("Due date is invalid"),
   body("notes").optional({ nullable: true }).trim()
+];
+
+export const shareClientSchema = [
+  body("email").trim().isEmail().withMessage("Shared user email is invalid"),
+  body("permission").isIn(["read", "edit"]).withMessage("Share permission is invalid")
 ];

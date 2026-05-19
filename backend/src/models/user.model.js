@@ -1,11 +1,11 @@
 import { pool } from "../db.js";
 
-const publicUserFields = "id, name, email, created_at";
+const publicUserFields = "id, name, email, role, created_at";
 
-export async function createUser({ name, email, password_hash }) {
+export async function createUser({ name, email, password_hash, role = "user" }) {
   const [result] = await pool.execute(
-    "INSERT INTO users (name, email, password_hash) VALUES (:name, :email, :password_hash)",
-    { name, email, password_hash }
+    "INSERT INTO users (name, email, password_hash, role) VALUES (:name, :email, :password_hash, :role)",
+    { name, email, password_hash, role }
   );
   return findUserById(result.insertId);
 }

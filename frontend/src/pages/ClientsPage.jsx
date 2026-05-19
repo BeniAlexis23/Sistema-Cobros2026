@@ -4,6 +4,7 @@ import { clientsApi } from "../api/clients.js";
 import { apiOrigin } from "../api/http.js";
 import { uploadsApi } from "../api/uploads.js";
 import ClientTable from "../components/ClientTable.jsx";
+import { useAuth } from "../context/AuthContext.jsx";
 import { getDebtSummary } from "../utils/billing.js";
 import { formatCurrency } from "../utils/formatters.js";
 import { buildWhatsappLink } from "../utils/whatsapp.js";
@@ -11,12 +12,17 @@ import { buildWhatsappLink } from "../utils/whatsapp.js";
 const today = new Date().toISOString().slice(0, 10);
 
 export default function ClientsPage() {
+  const { user } = useAuth();
   const [clients, setClients] = useState([]);
   const [filters, setFilters] = useState({ status: "", search: "" });
   const [importFile, setImportFile] = useState(null);
   const [showImportModal, setShowImportModal] = useState(false);
   const [collectionClient, setCollectionClient] = useState(null);
   const [receiptClient, setReceiptClient] = useState(null);
+  const [shareClient, setShareClient] = useState(null);
+  const [shareEntries, setShareEntries] = useState([]);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareForm, setShareForm] = useState({ email: "", permission: "read" });
   const [receiptView, setReceiptView] = useState(null);
   const [receiptLoading, setReceiptLoading] = useState(false);
   const [paymentProofFile, setPaymentProofFile] = useState(null);
@@ -54,6 +60,59 @@ export default function ClientsPage() {
     if (!confirm("Eliminar este cliente?")) return;
     await clientsApi.remove(id);
     await loadClients();
+  }
+
+  async function openShareModal(client) {
+    setShareClient(client);
+    setShareEntries([]);
+    setShareForm({ email: "", permission: "read" });
+    setShareLoading(true);
+    setError("");
+
+    try {
+      const data = await clientsApi.shares(client.id);
+      setShareEntries(data.shares);
+    } catch (err) {
+      setError(err.message);
+      setShareClient(null);
+    } finally {
+      setShareLoading(false);
+    }
+  }
+
+  function closeShareModal() {
+    setShareClient(null);
+    setShareEntries([]);
+    setShareLoading(false);
+    setShareForm({ email: "", permission: "read" });
+  }
+
+  async function handleShareClient(event) {
+    event.preventDefault();
+    if (!shareClient) return;
+
+    setError("");
+    try {
+      const data = await clientsApi.share(shareClient.id, shareForm);
+      setShareEntries(data.shares);
+      setShareForm({ email: "", permission: shareForm.permission });
+      setMessage("Acceso compartido correctamente.");
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function handleRemoveShare(shareId) {
+    if (!shareClient) return;
+
+    setError("");
+    try {
+      await clientsApi.removeShare(shareClient.id, shareId);
+      setShareEntries((current) => current.filter((share) => share.id !== shareId));
+      setMessage("Acceso compartido eliminado.");
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   async function handleImport(event) {
@@ -192,9 +251,11 @@ export default function ClientsPage() {
 
         <ClientTable
           clients={clients}
+          currentUser={user}
           onCollect={openCollectionModal}
           onDelete={handleDelete}
           onViewReceipt={openReceiptModal}
+          onShare={openShareModal}
         />
       </section>
 
@@ -343,6 +404,101 @@ export default function ClientsPage() {
               <button type="submit">Importar archivo</button>
             </div>
           </form>
+        </div>
+      )}
+
+      {shareClient && (
+        <div className="modal-backdrop" role="presentation">
+          <div className="modal share-modal">
+            <div className="panel-title">
+              <div>
+                <h2>Compartir cliente</h2>
+                <p>{shareClient.full_name} - comparte acceso con otro usuario por correo.</p>
+              </div>
+            </div>
+
+            <form className="compact-form" onSubmit={handleShareClient}>
+              <label>
+                Correo del usuario
+                <input
+                  type="email"
+                  value={shareForm.email}
+                  onChange={(event) => setShareForm({ ...shareForm, email: event.target.value })}
+                  placeholder="usuario@gmail.com"
+                  required
+                />
+              </label>
+
+              <div className="segmented">
+                <label className={shareForm.permission === "read" ? "checked" : ""}>
+                  <input
+                    type="radio"
+                    name="share_permission"
+                    value="read"
+                    checked={shareForm.permission === "read"}
+                    onChange={(event) => setShareForm({ ...shareForm, permission: event.target.value })}
+                  />
+                  Solo lectura
+                </label>
+                <label className={shareForm.permission === "edit" ? "checked" : ""}>
+                  <input
+                    type="radio"
+                    name="share_permission"
+                    value="edit"
+                    checked={shareForm.permission === "edit"}
+                    onChange={(event) => setShareForm({ ...shareForm, permission: event.target.value })}
+                  />
+                  Puede editar
+                </label>
+              </div>
+
+              <div className="form-actions">
+                <button type="submit">Guardar acceso</button>
+              </div>
+            </form>
+
+            <div className="panel-title">
+              <div>
+                <h2>Usuarios con acceso</h2>
+                <p>Gestiona a quién le das visibilidad o edición sobre este cliente.</p>
+              </div>
+            </div>
+
+            <div className="share-list">
+              {shareLoading ? (
+                <div className="notice">Cargando accesos...</div>
+              ) : shareEntries.length === 0 ? (
+                <div className="notice">Todavía no has compartido este cliente.</div>
+              ) : (
+                shareEntries.map((share) => (
+                  <div className="share-row" key={share.id}>
+                    <div>
+                      <strong>{share.name}</strong>
+                      <small>{share.email}</small>
+                    </div>
+                    <div className="share-row-actions">
+                      <span className={`table-chip ${share.permission === "edit" ? "edit-chip" : "read-only-chip"}`}>
+                        {share.permission === "edit" ? "Edicion" : "Lectura"}
+                      </span>
+                      <button
+                        type="button"
+                        className="danger-button"
+                        onClick={() => handleRemoveShare(share.id)}
+                      >
+                        Quitar
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="form-actions">
+              <button type="button" className="secondary-button" onClick={closeShareModal}>
+                Cerrar
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

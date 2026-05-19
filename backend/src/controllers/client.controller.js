@@ -6,14 +6,18 @@ import {
   createClient,
   deleteClient,
   findClientById,
+  listClientShares,
   listClientPayments,
   listClientPaymentYears,
   listClients,
+  removeClientShare,
+  upsertClientShare,
   updateClient
 } from "../models/client.model.js";
+import { findUserByEmail } from "../models/user.model.js";
 
 export async function getClients(req, res) {
-  const clients = await listClients(req.user.id, {
+  const clients = await listClients(req.user, {
     status: req.query.status,
     search: req.query.search
   });
@@ -21,7 +25,7 @@ export async function getClients(req, res) {
 }
 
 export async function getClient(req, res) {
-  const client = await findClientById(req.params.id, req.user.id);
+  const client = await findClientById(req.params.id, req.user);
   if (!client) {
     return res.status(404).json({ message: "Client not found" });
   }
@@ -50,13 +54,45 @@ export async function postClientPayment(req, res) {
 }
 
 export async function getClientPayments(req, res) {
-  const payments = await listClientPayments(req.params.id, req.user.id, req.query.year);
+  const payments = await listClientPayments(req.params.id, req.user, req.query.year);
   res.json({ payments });
 }
 
 export async function getClientPaymentYears(req, res) {
-  const years = await listClientPaymentYears(req.params.id, req.user.id);
+  const years = await listClientPaymentYears(req.params.id, req.user);
   res.json({ years });
+}
+
+export async function getClientShares(req, res) {
+  const result = await listClientShares(req.params.id, req.user);
+  if (!result) {
+    return res.status(404).json({ message: "Client not found or not shareable" });
+  }
+
+  res.json(result);
+}
+
+export async function postClientShare(req, res) {
+  const sharedUser = await findUserByEmail(req.body.email);
+  if (!sharedUser) {
+    return res.status(404).json({ message: "User to share with was not found" });
+  }
+
+  const result = await upsertClientShare(req.params.id, req.user, sharedUser, req.body.permission);
+  if (!result) {
+    return res.status(404).json({ message: "Client not found or not shareable" });
+  }
+
+  res.status(201).json(result);
+}
+
+export async function deleteSharedClientAccess(req, res) {
+  const deleted = await removeClientShare(req.params.id, req.params.shareId, req.user);
+  if (!deleted) {
+    return res.status(404).json({ message: "Shared access not found or cannot be removed" });
+  }
+
+  res.status(204).send();
 }
 
 export async function removeClient(req, res) {

@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { getBillingStatus, getDebtSummary } from "../utils/billing.js";
 import { formatCurrency, formatDate } from "../utils/formatters.js";
 
-export default function ClientTable({ clients, onCollect, onDelete, onViewReceipt }) {
+export default function ClientTable({ clients, currentUser, onCollect, onDelete, onViewReceipt, onShare }) {
   return (
     <div className="table-wrap">
       <table>
@@ -23,6 +23,9 @@ export default function ClientTable({ clients, onCollect, onDelete, onViewReceip
           {clients.map((client) => {
             const billing = getBillingStatus(client);
             const debt = getDebtSummary(client);
+            const canEdit = client.is_owner || client.access_permission === "owner" || client.access_permission === "edit";
+            const canManage = client.is_owner || client.access_permission === "owner";
+            const canShare = canManage && currentUser?.role !== "super_admin";
             const hasPayment = Boolean(client.last_payment_date);
             const paymentLabel =
               hasPayment && debt.amount <= 0
@@ -71,17 +74,28 @@ export default function ClientTable({ clients, onCollect, onDelete, onViewReceip
                 </td>
                 <td>{client.owner_name}</td>
                 <td className="actions">
-                  {debt.amount > 0 && client.phone && (
+                  {debt.amount > 0 && client.phone && canEdit && (
                     <button className="small-button collect-button" onClick={() => onCollect(client)}>
                       Cobrar
                     </button>
                   )}
-                  <Link className="small-link" to={`/clientes/${client.id}/editar`}>
-                    Editar
-                  </Link>
-                  <button className="danger-button" onClick={() => onDelete(client.id)}>
-                    Eliminar
-                  </button>
+                  {canEdit ? (
+                    <Link className="small-link" to={`/clientes/${client.id}/editar`}>
+                      Editar
+                    </Link>
+                  ) : (
+                    <span className="table-chip read-only-chip">Solo lectura</span>
+                  )}
+                  {canShare && (
+                    <button className="small-button share-button" onClick={() => onShare(client)}>
+                      Compartir
+                    </button>
+                  )}
+                  {canManage && (
+                    <button className="danger-button" onClick={() => onDelete(client.id)}>
+                      Eliminar
+                    </button>
+                  )}
                 </td>
               </tr>
             );

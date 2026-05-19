@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
   name VARCHAR(120) NOT NULL,
   email VARCHAR(160) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
+  role ENUM('super_admin', 'user') NOT NULL DEFAULT 'user',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -79,4 +80,19 @@ CREATE TABLE IF NOT EXISTS client_payment_years (
   CONSTRAINT fk_payment_year_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
   CONSTRAINT fk_payment_year_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   UNIQUE KEY uniq_client_year (client_id, billing_year)
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS client_shares (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  client_id INT NOT NULL,
+  owner_user_id INT NOT NULL,
+  shared_with_user_id INT NOT NULL,
+  permission ENUM('read', 'edit') NOT NULL DEFAULT 'read',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_client_share_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
+  CONSTRAINT fk_client_share_owner FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_client_share_user FOREIGN KEY (shared_with_user_id) REFERENCES users(id) ON DELETE CASCADE,
+  UNIQUE KEY uniq_client_share_user (client_id, shared_with_user_id),
+  INDEX idx_client_shares_user (shared_with_user_id, permission)
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

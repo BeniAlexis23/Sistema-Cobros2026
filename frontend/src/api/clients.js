@@ -8,6 +8,9 @@ export const clientsApi = {
     return request(`/clients${query ? `?${query}` : ""}`);
   },
   get: (id) => request(`/clients/${id}`),
+  shares: (id) => request(`/clients/${id}/shares`),
+  share: (id, payload) => request(`/clients/${id}/shares`, { method: "POST", body: JSON.stringify(payload) }),
+  removeShare: (id, shareId) => request(`/clients/${id}/shares/${shareId}`, { method: "DELETE" }),
   payments: (id, year) => request(`/clients/${id}/payments${year ? `?year=${year}` : ""}`),
   paymentYears: (id) => request(`/clients/${id}/payment-years`),
   create: (payload) => request("/clients", { method: "POST", body: JSON.stringify(payload) }),

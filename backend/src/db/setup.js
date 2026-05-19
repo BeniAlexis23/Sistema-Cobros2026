@@ -3,6 +3,7 @@ import mysql from "mysql2/promise";
 import path from "path";
 import { fileURLToPath, pathToFileURL } from "url";
 import { config } from "../config.js";
+import { hashPassword } from "../libs/password.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,7 +24,9 @@ export async function setupDatabase() {
     await connection.query(schema);
     await ensureDatabaseCollation(connection);
     await ensureTableCollations(connection);
+    await ensureUserRoleColumn(connection);
     await ensureClientBillingColumns(connection);
+    await ensureSuperAdminUser(connection);
     await backfillClientPaymentYears(connection);
     await backfillPaymentRecords(connection);
     console.log(`Database "${config.db.database}" is ready.`);
@@ -49,7 +52,7 @@ async function ensureDatabaseCollation(connection) {
 }
 
 async function ensureTableCollations(connection) {
-  const tables = ["users", "clients", "invoice_files", "payment_records", "client_payment_years"];
+  const tables = ["users", "clients", "invoice_files", "payment_records", "client_payment_years", "client_shares"];
 
   for (const table of tables) {
     await connection.query(
@@ -58,6 +61,37 @@ async function ensureTableCollations(connection) {
        COLLATE utf8mb4_unicode_ci`
     );
   }
+}
+
+async function ensureUserRoleColumn(connection) {
+  const [columns] = await connection.query(
+    `SELECT COLUMN_NAME
+     FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'users'`,
+    [config.db.database]
+  );
+
+  const existing = new Set(columns.map((column) => column.COLUMN_NAME));
+  if (!existing.has("role")) {
+    await connection.query(
+      `ALTER TABLE \`${config.db.database}\`.users
+       ADD COLUMN role ENUM('super_admin', 'user') NOT NULL DEFAULT 'user' AFTER password_hash`
+    );
+  }
+}
+
+async function ensureSuperAdminUser(connection) {
+  const email = "admin@gmail.com";
+  const passwordHash = await hashPassword("123456");
+
+  await connection.query(
+    `INSERT INTO \`${config.db.database}\`.users (name, email, password_hash, role)
+     VALUES (?, ?, ?, 'super_admin')
+     ON DUPLICATE KEY UPDATE
+       role = 'super_admin',
+       password_hash = VALUES(password_hash)`,
+    ["Super Admin", email, passwordHash]
+  );
 }
 
 async function backfillPaymentRecords(connection) {
